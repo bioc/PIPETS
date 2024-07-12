@@ -1,3 +1,6 @@
+Changes in version 1.0.3 (2024-07-12)
++ Changed the read quality score parameter from a static value to a minimum, so that all values equal to or greater than are considered
+
 Changes in version 1.0.2 (2024-07-11)
 + Changed PIPETS to use read quality score as a cutoff instead of read length. Functions as better trimming process
 + Input bed files and GRanges objects now both correctly use read quality score
