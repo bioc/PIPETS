@@ -209,7 +209,7 @@ consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
 #' Bed_Split
 #' First step of PIPETS. Takes input Bed files and splits them by strand while also assigning read coverage to each genomic position
 #' @title Split Input Bed Data By Strand
-#' @importFrom dplyr arrange distinct
+#' @importFrom dplyr arrange distinct group_by transmute %>%
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
 #' @param inputData Input BED file that is not strand split. For PIPETS, the first column must be the chromosome name, the second column must be the start coordinate, the third column must be the stop coordinate, and the 6th column must be the strand. Columns 4 and 5 must be present but their information will not be used.
@@ -218,7 +218,7 @@ consecutivePeakCheck <- function(OMF, SWR, pCD,TWH){
 #' @return Returns a list containing the Plus Strand Reads, the Minus Strand Reads, and the user defined name for the files. Also writes out the strand split bed files to the project directory.
 #' @examples
 #' ## Split input bed file into stranded files without running PIPETS
-#' Bed_Split(inputBedFile="Test_Data.bed", readScoreMinimum=42,OutputFileID = "Test1")
+#' Bed_Split(inputData="Test_Data.bed", readScoreMinimum=42,OutputFileID = "Test1")
 #' @noRd
 #'
 Bed_Split <- function(inputData,readScoreMinimum, OutputFileID){
@@ -237,20 +237,33 @@ Bed_Split <- function(inputData,readScoreMinimum, OutputFileID){
     startBed$coverage <- 0
     startBed <- startBed[ , c("chrom", "start", "stop","score", "coverage", "strand"),
                           drop=FALSE]
+    
     PSR <- startBed[startBed$strand %in% "+",, drop=FALSE]
-    PSR <- PSR[PSR$score >= readScoreMinimum,, drop=FALSE] 
+    PSR <- PSR[PSR$score >= readScoreMinimum,, drop=FALSE]
     PSC <- as.data.frame(table(PSR$stop))
     PSR <- distinct(PSR, stop, .keep_all = TRUE)
     PSR <- arrange(PSR, stop)
     PSR$coverage <- PSC$Freq[match(PSR$stop,PSC$Var1)]
-    PSR <- PSR[,c(1,2,3,5,6)]
+    sumColumn <- PSR %>% group_by(start) %>% transmute(Total=sum(coverage))
+    PSR$tempSum <- sumColumn$Total
+    PSR <- PSR[order(PSR$start, -PSR$coverage),]
+    PSR <- PSR[!duplicated(PSR$start),]
+    PSR$coverage <- PSR$tempSum
+    PSR <- PSR[,-7]
+    
     MSR <- startBed[startBed$strand %in% "-",, drop=FALSE]
     MSR <- MSR[MSR$score >= readScoreMinimum,, drop=FALSE]
     MSC <- as.data.frame(table(MSR$start))
     MSR <- distinct(MSR, start, .keep_all = TRUE)
     MSR <- arrange(MSR, start)
     MSR$coverage <- MSC$Freq[match(MSR$start,MSC$Var1)]
-    MSR <- MSR[,c(1,2,3,5,6)]
+    sumColumn <- MSR %>% group_by(stop) %>% transmute(Total=sum(coverage))
+    MSR$tempSum <- sumColumn$Total
+    MSR <- MSR[order(MSR$stop, -MSR$coverage),]
+    MSR <- MSR[!duplicated(MSR$stop),]
+    MSR$coverage <- MSR$tempSum
+    MSR <- MSR[,-7]
+
     write.table(PSR,
                 file = paste(as.character(OutputFileName),"PlusStrandCounts.bed", sep = "_")
                 ,quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -258,16 +271,19 @@ Bed_Split <- function(inputData,readScoreMinimum, OutputFileID){
                 file = paste(as.character(OutputFileName),
                              "MinusStrandCounts.bed", sep = "_"),
                 quote = FALSE, row.names = FALSE, col.names = FALSE)
+    
+    PSR <- PSR[,c(1,2,3,5,6)]
+    MSR <- MSR[,c(1,2,3,5,6)]
     return(list(OutputFileName,PSR,MSR))
 }
 
 #' GRanges_Split
 #' First step of PIPETS when GRanges option is selected for input. Takes input granges object, strand splits it and trims off reads that are too short or long, and then outputs strand split bed file to directory and preserves strand split granges objects to be output at the end of the method
 #' @title Split Input Bed Data By Strand
-#' @importFrom dplyr arrange distinct
+#' @importFrom dplyr arrange distinct group_by transmute %>%
 #' @importFrom stats aggregate ppois complete.cases
 #' @importFrom utils write.csv write.table read.table read.delim
-#' @importFrom GenomicRanges ranges end
+#' @importFrom GenomicRanges ranges end start makeGRangesFromDataFrame
 #' @importFrom BiocGenerics strand
 #' @importFrom methods is
 #' @param inputData Input granges object. PIPETS requires chromosome, start, stop, and strand information from the granges object
@@ -286,32 +302,48 @@ GRanges_Split <- function(inputData,readScoreMinimum, OutputFileID){
     message("Splitting Input GRanges Object By Strand")
     allMinusRanges <- inputData[strand(inputData) == "-",]
     allPlusRanges <- inputData[strand(inputData) == "+",]
-    
     allMinusRanges <- allMinusRanges[allMinusRanges$score >= readScoreMinimum,]
     allPlusRanges <- allPlusRanges[allPlusRanges$score >= readScoreMinimum,]
     
-    allMinusCoverage <- as.data.frame(table(end(allPlusRanges)))
-    allMinusReads <- as.data.frame(allPlusRanges)
-    allMinusReads <- distinct(allMinusReads, end, .keep_all = TRUE)
-    allMinusReads <- arrange(allMinusReads, end)
+    allMinusCoverage <- as.data.frame(table(start(allMinusRanges)))
+    allMinusReads <- as.data.frame(allMinusRanges)
+    allMinusReads <- distinct(allMinusReads, start, .keep_all = TRUE)
+    allMinusReads <- arrange(allMinusReads, start)
     allMinusReads$coverage <- allMinusCoverage$Freq[base::match
-                                                    (allMinusReads$end,allMinusCoverage$Var1)]
+                                                    (allMinusReads$start,allMinusCoverage$Var1)]
+    sumColumn <- allMinusReads %>% group_by(end) %>% transmute(Total=sum(coverage))
+    allMinusReads$tempSum <- sumColumn$Total
+    allMinusReads <- allMinusReads[order(allMinusReads$end, -allMinusReads$coverage),]
+    allMinusReads <- allMinusReads[!duplicated(allMinusReads$end),]
+    allMinusReads$coverage <- allMinusReads$tempSum
+    allMinusReads <- allMinusReads[,-8] 
+    allMinusRanges <- GenomicRanges::makeGRangesFromDataFrame(allMinusReads,keep.extra.columns = TRUE)
     allMinusReads <- allMinusReads[,c(1,2,3,5,7)]
     allMinusReads <- allMinusReads[,c("seqnames","start","end","coverage","strand")
-                              , drop=FALSE]
+                                   , drop=FALSE]
     colnames(allMinusReads) <- c("chrom","start","stop","coverage","strand")
     allMinusReads$start <- allMinusReads$start - 1
-    allPlusCoverage <- as.data.frame(table(end(allMinusRanges)))
-    allPlusReads <- as.data.frame(allMinusRanges)
+    allMinusReads$stop <- allMinusReads$stop -1
+    
+    allPlusCoverage <- as.data.frame(table(end(allPlusRanges)))
+    allPlusReads <- as.data.frame(allPlusRanges)
     allPlusReads <- distinct(allPlusReads, end, .keep_all = TRUE)
     allPlusReads <- arrange(allPlusReads, end)
     allPlusReads$coverage <- allPlusCoverage$Freq[base::match
                                                   (allPlusReads$end,allPlusCoverage$Var1)]
+    sumColumn <- allPlusReads %>% group_by(start) %>% transmute(Total=sum(coverage))
+    allPlusReads$tempSum <- sumColumn$Total
+    allPlusReads <- allPlusReads[order(allPlusReads$start, -allPlusReads$coverage),]
+    allPlusReads <- allPlusReads[!duplicated(allPlusReads$start),]
+    allPlusReads$coverage <- allPlusReads$tempSum
+    allPlusReads <- allPlusReads[,-8]
+    allPlusRanges <- GenomicRanges::makeGRangesFromDataFrame(allPlusReads,keep.extra.columns = TRUE)
     allPlusReads <- allPlusReads[,c(1,2,3,5,7)]
     allPlusReads <- allPlusReads[,c("seqnames","start","end","coverage","strand")
-                             , drop=FALSE]
+                                 , drop=FALSE]
     colnames(allPlusReads) <- c("chrom","start","stop","coverage","strand")
     allPlusReads$start <- allPlusReads$start - 1
+    allPlusReads$stop <- allPlusReads$stop - 1
     
     write.table(allPlusReads,file = paste(as.character(OutputFileID),
                                           "PlusStrandCounts.bed", sep = "_")
@@ -322,7 +354,6 @@ GRanges_Split <- function(inputData,readScoreMinimum, OutputFileID){
                 quote = FALSE, row.names = FALSE, col.names = FALSE)
     return(list(OutputFileID,allPlusReads,allMinusReads,allPlusRanges,
                 allMinusRanges))
-    
 }
 
 
@@ -477,7 +508,7 @@ compConsecutiveCheck <- function(OF, OMF, aPD, TPH){
 TopStrand_InitialPoisson <- function(MinusStrandReads,slidingWindowSize = 25,
                                      slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
                                      highOutlierTrim= 0.01){
-    MSR <- MinusStrandReads
+    MSR <- as.data.frame(MinusStrandReads)
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
     outputFrame <- as.data.frame(matrix(nrow = 0, ncol = 7))
@@ -610,7 +641,7 @@ TopStrand_SecondaryCondense <- function(TopInititalCondense,
 CompStrand_InitialPoisson <- function(PlusStrandReads,slidingWindowSize = 25,
                                       slidingWindowMovementDistance = 25,threshAdjust = 0.75,user_pValue = 0.0005,
                                       highOutlierTrim= 0.01){
-    PSR <- PlusStrandReads
+    PSR <- as.data.frame(PlusStrandReads)
     SWMD <- slidingWindowMovementDistance
     SWS <- slidingWindowSize
     outputFrame <- as.data.frame(matrix(nrow = 0, ncol = 7))
@@ -731,10 +762,10 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' PIPETS_FullRun
 #' @title Analyze 3'-seq Data with PIPETS
 #' Poisson Identification of PEaks from Term-Seq data. This is the full run method that begins with input Bed file and returns the strand split results
-#' @importFrom dplyr arrange distinct
+#' @importFrom dplyr arrange distinct %>% group_by transmute
 #' @importFrom stats aggregate ppois complete.cases p.adjust
 #' @importFrom utils write.csv write.table read.table read.delim
-#' @importFrom GenomicRanges ranges end
+#' @importFrom GenomicRanges ranges end start makeGRangesFromDataFrame
 #' @param inputData Either input Bed file or GRanges object. Either must have at least chromosome, start, stop, and strand information
 #' @param OutputFileID User defined header for the output files of PIPETS. Will be the prefix for output bed and csv files.
 #' @param OutputFileDir User defined output file directory where all files generated by PIPETS will be placed
@@ -818,6 +849,5 @@ PIPETS_FullRun <- function(inputData,readScoreMinimum,OutputFileID,
         return(list(AllReads[[4]], AllReads[[5]]))
     }
 }
-
 
 

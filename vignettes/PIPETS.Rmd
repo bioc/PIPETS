@@ -69,7 +69,7 @@ library(PIPETS)
 
 #Bed File Input
 PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
-               ,readScoreMinimum = 42, OutputFileID = "ExampleResultsRun", 
+               ,readScoreMinimum = 30, OutputFileID = "ExampleResultsRun", 
                OutputFileDir = tempdir(),
                inputDataFormat = "bedFile")
 
@@ -92,7 +92,7 @@ GRanges_Object <- GRanges(seqnames = GRanges_Object$V1,
         ranges = IRanges(start = GRanges_Object$V2,end = GRanges_Object$V3
         ),score = GRanges_Object$V5 ,strand = GRanges_Object$V6)
 
-ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readScoreMinimum = 42, 
+ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readScoreMinimum = 30, 
                OutputFileDir = tempdir(),
                OutputFileID = "ExampleResultsRun", inputDataFormat = "GRanges")
 
