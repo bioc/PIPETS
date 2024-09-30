@@ -1,3 +1,6 @@
+Changes in version 1.1.5 (2024-09-27)
++ Added strand specific analysis parameters. Can now use different threshAdjust and highOutlierTrim values for each strand should they choose.
+
 Changes in version 1.1.4 (2024-09-11)
 + Resolved warnings that popped up during Initial Poisson Distribution testing. Results will not be greatly changed but now PIPETS correctly counts all reads.
 + Fixed problems in Genomic Ranges input method so that it now correctly mirrors the analysis performed for bed file inputs.

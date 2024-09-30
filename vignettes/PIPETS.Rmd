@@ -77,6 +77,9 @@ PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
 ```
 
 
+
+
+
 #### GRanges Object Input
 ```{r echo=TRUE, message=FALSE}
 library(PIPETS)
@@ -99,6 +102,35 @@ ResultsList <- PIPETS_FullRun(inputData = GRanges_Object, readScoreMinimum = 30,
 head(ResultsList)
 
 ```
+
+#### Bed File Input and Strand Specific Analysis
+In the event that there is a large disparity in read depth or the presence of
+outliers between the top and complement data of a given data set, PIPETS can use
+different values for threshAdjust and highOutlierTrim to account for each 
+strand uniquely. In order to perform this analysis, threshAdjust and 
+highOutlierTrim should each be set to NA and the strand specific values of each
+of those parameters should then be set to the desired values.
+```{r echo=TRUE, message=FALSE}
+
+library(PIPETS)
+
+
+#Bed File Input
+PIPETS_FullRun(inputData = "PIPETS_TestData.bed"
+               ,readScoreMinimum = 30, OutputFileID = "ExampleResultsRun", 
+               OutputFileDir = tempdir(), threshAdjust = NA, 
+               threshAdjust_TopStrand = 0.75, threshAdjust_CompStrand = 0.55,
+               highOutlierTrim = NA, highOutlierTrim_TopStrand = 0.01,
+               highOutlierTrim_CompStrand = 0.05,
+               inputDataFormat = "bedFile")
+
+
+```
+
+
+
+
+
 
 ### PIPETS Output
 Per input Bed file, PIPETS will create 4 output files in the R directory. All

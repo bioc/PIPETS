@@ -15,8 +15,12 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 #' @param slidingWindowSize See PIPETS_Run for full explanation
 #' @param slidingWindowMovementDistance See PIPETS_Run for full explanation
 #' @param threshAdjust See PIPETS_Run for full explanation
+#' @param threshAdjust_TopStrand See PIPETS_Run for full explanation
+#' @param threshAdjust_CompStrand See PIPETS_Run for full explanation
 #' @param user_pValue See PIPETS_Run for full explanation
 #' @param highOutlierTrim See PIPETS_Run for full explanation
+#' @param highOutlierTrim_TopStrand See PIPETS_Run for full explanation
+#' @param highOutlierTrim_CompStrand See PIPETS_Run for full explanation
 #' @param adjacentPeakDistance See PIPETS_Run for full explanation
 #' @param peakCondensingDistance See PIPETS_Run for full explanation
 #' @param inputDataFormat PIPETS currently supports "bedFile" (default) and "GRanges" as input formats
@@ -26,9 +30,11 @@ utils::globalVariables(c("coverage", "HighestPeakReadCoverage",
 inputCheck <- function(inputData,readScoreMinimum,OutputFileID,
                        OutputFileDir,slidingWindowSize, 
                        slidingWindowMovementDistance,threshAdjust,
-                       user_pValue,highOutlierTrim,
-                       adjacentPeakDistance, peakCondensingDistance,
-                       inputDataFormat = "bedFile"){
+                       threshAdjust_TopStrand,threshAdjust_CompStrand,
+                       user_pValue,highOutlierTrim,highOutlierTrim_TopStrand,
+                       highOutlierTrim_CompStrand, adjacentPeakDistance,
+                        peakCondensingDistance,inputDataFormat = "bedFile"
+                       ){
     kicker <- 0
     if(!as.character(inputDataFormat) %in% c("bedFile","GRanges")){
         kicker <- 1
@@ -78,9 +84,57 @@ inputCheck <- function(inputData,readScoreMinimum,OutputFileID,
             return(kicker)
         }
     }
+    
+    if(is.na(threshAdjust) & is.na(threshAdjust_TopStrand) & 
+       is.na(threshAdjust_CompStrand)){
+        warning("Must either provide a threshAdjust value or values for
+                both of the strand specicific threshAdjust values")
+        kicker <- 1
+        return(kicker)
+    }
+    
+    if(is.na(highOutlierTrim) & is.na(highOutlierTrim_TopStrand) & 
+       is.na(highOutlierTrim_CompStrand)){
+        warning("Must either provide a highOutlierTrim value or values for
+                both of the strand specicific highOutlierTrim values")
+        kicker <- 1
+        return(kicker)
+    }
+
+    if((is.na(threshAdjust) & is.na(threshAdjust_TopStrand)) | 
+       (is.na(threshAdjust) & is.na(threshAdjust_CompStrand))){
+        warning("Cannot run strand specific analysis because one or 
+                more of the strand specific threshAdjust values is NA")
+        kicker <- 1
+        return(kicker)
+    }
+    
+    if((is.na(highOutlierTrim) & is.na(highOutlierTrim_TopStrand)) | 
+       (is.na(highOutlierTrim) & is.na(highOutlierTrim_CompStrand))){
+        warning("Cannot run strand specific analysis because one or 
+                more of the strand specific highOutlierTrim values is NA")
+        kicker <- 1
+        return(kicker)
+    }
+    
+    if(!is.numeric(threshAdjust) & is.na(threshAdjust_TopStrand) & 
+       is.na(threshAdjust_CompStrand)){
+        warning("threshAdjust is not a number and strand specific threshAdjust
+                values have not been provided so PIPETS cannot run.")
+        kicker <- 1
+        return(kicker)
+    }
+    
+    if(!is.numeric(highOutlierTrim) & is.na(highOutlierTrim_TopStrand) & 
+       is.na(highOutlierTrim_CompStrand)){
+        warning("highOutlierTrim is not a number and strand specific
+        highOutlierTrim values have not been provided so PIPETS cannot run.")
+        kicker <- 1
+        return(kicker)
+    }
+
     if(!is.numeric(slidingWindowSize)|
        !is.numeric(slidingWindowMovementDistance)|
-       !is.numeric(highOutlierTrim)|!is.numeric(threshAdjust)|
        !is.numeric(user_pValue)|!is.numeric(adjacentPeakDistance)|
        !is.numeric(peakCondensingDistance)|!is.numeric(readScoreMinimum)){
         warning("One or more numerical parameters is not a number and PIPETS 
@@ -89,12 +143,14 @@ inputCheck <- function(inputData,readScoreMinimum,OutputFileID,
         return(kicker)
     }
     if(slidingWindowSize == 0 | slidingWindowMovementDistance == 0 |
-       threshAdjust ==0 | readScoreMinimum == 0 |
-       adjacentPeakDistance ==0 | peakCondensingDistance == 0){
+        readScoreMinimum == 0 | adjacentPeakDistance ==0 |
+        peakCondensingDistance == 0){
         warning("One or more parameters is 0 and PIPETS cannot run")
         kicker <- 1
         return(kicker)
     }
+    
+    
     return(kicker)
 }
 
@@ -775,8 +831,12 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 #' @param adjacentPeakDistance During the peak condensing step, this parameter is used to define “adjacent” for significant genomic positions. This is used to identify initial peak structures in the data. By default this value is set to 2 to ensure that single instances of loss of signal are not sufficient to prevent otherwise contiguous peak signatures from being combined.
 #' @param peakCondensingDistance Following the initial peak condensing step, this parameter is used to identify peak structures in the data that are close enough to be considered part of the same termination signal. In testing, we have not identified cases in which two distinct termination signals so proximal that the default parameters incorrectly combine the signals together.
 #' @param threshAdjust This parameter is used to establish a global cutoff threshold informed by the data. PIPETS sorts the genomic positions of each strand from highest to lowest, and starts with the highest read coverage position and subtracts that value from the total read coverage for that strand. By default, this continues until 75% of the total read coverage has been accounted for. Increasing the percentage (e.x. 0.9) will lower the strictness of the cutoff, thus increasing the total number of significant results.
+#' @param threshAdjust_TopStrand Top strand specific threshAdjust value. If the user would like to run strand specific analysis, they should set threshAdjust to NA.
+#' @param threshAdjust_CompStrand Comp strand specific threshAdjust value. If the user would like to run strand specific analysis, they should set threshAdjust to NA.
 #' @param user_pValue Choose the minimum pValue that the Poisson distribution test must pass in order to be considered significant
 #' @param highOutlierTrim This parameter is used along with threshAdjust to trim off the influence exerted by high read coverage outliers. By default, it removes the top 0.01 percent of the highest read coverage positions from the calculation of the global threshold (e.x. if there are 200 positions that make up 75% of the total reads, then this parameter will take the top 2 read coverage positions and remove them from the calculation of the global threshold). This parameter can be tuned to account for datasets with outliers that would otherwise severely skew the global threshold.
+#' @param highOutlierTrim_TopStrand Top strand specific highOutlierTrim value. If the user would like to run strand specific analysis, they should set highOutlierTrim to NA.
+#' @param highOutlierTrim_CompStrand Comp strand specific highOutlierTrim value. If the user would like to run strand specific analysis, they should set highOutlierTrim to NA.
 #' @param inputDataFormat PIPETS currently supports "bedFile" (default) and "GRanges" as input formats
 #' @examples
 #' ## When run, the user will be prompted to provide a string for file names
@@ -800,16 +860,19 @@ CompStrand_SecondaryCondense <- function(CompInitialCondense,
 
 PIPETS_FullRun <- function(inputData,readScoreMinimum,OutputFileID,
     OutputFileDir,slidingWindowSize = 25,
-    slidingWindowMovementDistance = 25,threshAdjust = 0.75,
+    slidingWindowMovementDistance = 25,threshAdjust = 0.75, 
+    threshAdjust_TopStrand = NA, threshAdjust_CompStrand = NA,
     user_pValue = 0.0005,highOutlierTrim= 0.01,
+    highOutlierTrim_TopStrand = NA, highOutlierTrim_CompStrand = NA,
     adjacentPeakDistance = 2, peakCondensingDistance = 20,
     inputDataFormat = "bedFile"){
     kicker <- inputCheck(inputData,readScoreMinimum,OutputFileID,
                          OutputFileDir,slidingWindowSize, 
                          slidingWindowMovementDistance,threshAdjust,
-                         user_pValue,highOutlierTrim,
-                         adjacentPeakDistance, peakCondensingDistance,
-                         inputDataFormat = inputDataFormat)
+                         threshAdjust_TopStrand,threshAdjust_CompStrand,
+                         user_pValue,highOutlierTrim,highOutlierTrim_TopStrand,
+                         highOutlierTrim_CompStrand,adjacentPeakDistance,
+                         peakCondensingDistance,inputDataFormat = inputDataFormat)
     if(kicker ==1){
         return()
     }
@@ -819,13 +882,31 @@ PIPETS_FullRun <- function(inputData,readScoreMinimum,OutputFileID,
     } else if (inputDataFormat %in% "GRanges"){
         AllReads <- GRanges_Split(inputData,readScoreMinimum, OutputFileID)
     }
+    if(!is.na(threshAdjust) & is.numeric(threshAdjust)){
+        topInputTA <- threshAdjust
+        compInputTA <- threshAdjust
+    }
+    if(is.na(threshAdjust)){
+        topInputTA <- threshAdjust_TopStrand
+        compInputTA <- threshAdjust_CompStrand
+        message("Running PIPETS with strand specific threshAdjust values")
+    }
+    if(!is.na(highOutlierTrim) & is.numeric(highOutlierTrim)){
+        topInputHOT <- highOutlierTrim
+        compInputHOT <- highOutlierTrim
+    }
+    if(is.na(highOutlierTrim)){
+        topInputHOT <- highOutlierTrim_TopStrand
+        compInputHOT <- highOutlierTrim_CompStrand
+        message("Running PIPETS with strand specific highOutlierTrim values")
+    }
     message("+-----------------------------------+")
     message("Performing Top Strand Analysis")
     TopInititalPoisson <- TopStrand_InitialPoisson(
         MinusStrandReads = AllReads[[3]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
-        threshAdjust = threshAdjust, user_pValue = user_pValue,
-        highOutlierTrim= highOutlierTrim)
+        threshAdjust = topInputTA, user_pValue = user_pValue,
+        highOutlierTrim= topInputHOT)
     TopInititalCondense <- TopStrand_InitialCondense(
         TopInititalPoisson = TopInititalPoisson,
         adjacentPeakDistance = adjacentPeakDistance)
@@ -837,8 +918,8 @@ PIPETS_FullRun <- function(inputData,readScoreMinimum,OutputFileID,
     CompInitialPoisson <- CompStrand_InitialPoisson(
         PlusStrandReads = AllReads[[2]],slidingWindowSize = slidingWindowSize,
         slidingWindowMovementDistance = slidingWindowMovementDistance,
-        threshAdjust = threshAdjust, user_pValue = user_pValue,
-        highOutlierTrim= highOutlierTrim)
+        threshAdjust = compInputTA, user_pValue = user_pValue,
+        highOutlierTrim= compInputHOT)
     CompInitialCondense <- CompStrand_InitialCondense(
         CompInitialPoisson = CompInitialPoisson,
         adjacentPeakDistance = adjacentPeakDistance)
