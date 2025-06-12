@@ -60,7 +60,7 @@ inputCheck <- function(inputData,readScoreMinimum,OutputFileID,
             kicker <- 1
             return(kicker)
         }
-        else if(ncol(test) < 6){
+        else if(ncol(test) < 5){
             warning("Not enough columns in input file")
             kicker <- 1
             return(kicker)
